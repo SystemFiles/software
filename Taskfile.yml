@@ -393,11 +393,11 @@ tasks:
       - sh: command -v make
         msg: "'make' must be installed in order to compile 'glab'"
     deps: [configure, glab:download]
-    dir: "{{.USER_HOME}}/go/bin"
+    dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
         if [[ "{{OS}}" == "linux" ]]; then
-          [[ $(command -v glab) ]] || cd {{.USER_WORKING_DIR}}/glab && PATH=$PATH:{{.USER_HOME}}/go/bin make install
+          [[ $(command -v glab) ]] || cd glab && PATH=$PATH:{{.USER_HOME}}/go/bin make install
         elif [[ "{{OS}}" == "darwin" ]]; then
           [[ $(command -v glab) ]] || brew install glab
         fi
