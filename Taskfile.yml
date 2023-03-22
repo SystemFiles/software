@@ -1,0 +1,418 @@
+version: "3"
+dotenv: [".env"]
+output: prefixed
+
+vars:
+  OS_DIST:
+    sh: |
+      [[ -f /etc/os-release ]] && cat /etc/os-release | grep -i id | head -1 | cut -d= -f2 | tr '[:upper:]' '[:lower:]' || echo "nil"
+
+  USER_HOME:
+    sh: |
+      echo "$HOME"
+
+  BIN:
+    sh: |
+      echo "$HOME/bin"
+
+  LOCAL_TMP:
+    sh: |
+      echo "$(pwd)/{{now | date "2006-01-02"}}_tmp"
+
+  TERRAFORM_VERSION: "1.4.2"
+
+  GO_VERSION: 1.20.2
+
+tasks:
+
+  default:
+    prefix: "..."
+    cmds:
+      - task -l
+    silent: true
+
+  curl:check:
+    preconditions:
+      - sh: command -v curl
+        msg: "'curl' must be installed in order to run this task"
+
+  install:
+    desc: Installs everything
+    deps: [install:kubernetes, install:headless]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - task: code:install
+      - rm -rf {{.LOCAL_TMP}}
+
+  install:kubernetes:
+    desc: Installs Kubernetes tools
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - task: go:install
+      - task: jq:install
+      - task: kubectl:install
+      - task: k9s:install
+      - task: kwok:install
+      - task: helm:install
+      - rm -rf {{.LOCAL_TMP}}
+
+  install:headless:
+    desc: Installs all headless tools
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - task: unzip:install
+      - task: jq:install
+      - task: git:install
+      - task: go:install
+      - task: install:kubernetes
+      - task: terraform:install
+      - task: terraform-docs:install
+      - task: glab:install
+      - rm -rf {{.LOCAL_TMP}}
+
+  configure:
+    run: once
+    desc: Configures a local temp environment for easy cleanup
+    cmds:
+      - mkdir -pv {{.LOCAL_TMP}}
+    silent: true
+
+  bin:install:
+    run: once
+    desc: Creates the user home binaries folder
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mkdir -pv {{.BIN}}
+    silent: true
+
+  unzip:install:
+    run: once
+    desc: Installs 'unzip'
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          if [[ {{.OS_DIST}} == "debian" || {{.OS_DIST}} == "ubuntu" ]]; then
+            [[ $(command -v unzip) ]] || sudo apt install -y unzip
+          fi
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          [[ $(command -v unzip) ]] || brew install unzip
+        fi
+    silent: true
+
+  git:install:
+    run: once
+    desc: Installs 'git'
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          if [[ "{{.OS_DIST}}" == "debian" || "{{.OS_DIST}}" == "ubuntu" ]]; then
+            [[ $(command -v git) ]] || sudo apt install -y git
+          fi
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          [[ $(command -v git) ]] || brew install git
+        fi
+    silent: true
+
+  azure:install:
+    run: once
+    desc: Installs 'azure-cli'
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+        else
+          curl -sL https://aka.ms/InstallAzureCli | sudo bash
+        fi
+    silent: true
+
+  precommit:install:
+    run: once
+    desc: Installs 'pre-commit'
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "darwin" ]]; then
+          brew install pre-commit
+        elif [[ "{{OS}}" == "linux" ]]; then
+          if [[ "{{.OS_DIST}}" == "debian" || "{{.OS_DIST}}" == "ubuntu" ]]; then
+            echo "[WARNING] there appears to be no automated way to install pre-commit on {{OS}}. install it manually"
+          fi
+        fi
+
+  rust:install:
+    run: once
+    desc: Installs the 'rust' toolchain
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sudo sh -s -- -y
+
+  go:download:
+    run: once
+    desc: Downloads 'go' installation files
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          [[ $(command -v go) ]] || curl -LO https://go.dev/dl/go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          [[ $(command -v go) ]] || curl -LO https://go.dev/dl/go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.pkg
+        fi
+    silent: true
+
+  go:install:
+    run: once
+    desc: Installs 'go'
+    deps: [configure, go:download]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          [[ $(command -v go) ]] || sudo rm -rf {{.USER_HOME}}/go && tar -C {{.USER_HOME}} -zxf go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz
+          rm -f go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          [[ $(command -v go) ]] || sudo installer -pkg go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.pkg -target / && rm -f go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.pkg
+        fi
+    silent: true
+
+  jq:download:
+    run: once
+    desc: Downloads 'jq' installation files
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    vars:
+      VERSION: "1.6"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          curl -L -o jq https://github.com/stedolan/jq/releases/download/jq-{{.VERSION}}/jq-linux64;
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          curl -L -o jq https://github.com/stedolan/jq/releases/download/jq-{{.VERSION}}/jq-osx-{{ARCH}};
+        fi
+      - chmod 0755 jq
+    silent: true
+
+  jq:install:
+    run: once
+    desc: Installs 'jq'
+    deps: [configure, bin:install, jq:download, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mv jq {{.BIN}}/jq
+    silent: true
+
+  docker:install:
+    run: once
+    desc: Installs 'docker'
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          if [[ "{{.OS_DIST}}" == "ubuntu" || "{{.OS_DIST}}" == "debian" ]]; then
+            sudo apt-get update
+            sudo apt-get install -y ca-certificates gnupg lsb-release
+            sudo mkdir -m 0755 -p /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            sudo chmod a+r /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+            sudo apt-get update
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          fi
+        else
+          echo "[WARNING] Will not download docker on {{OS}} ... please download docker desktop from their website: https://www.docker.com/products/docker-desktop/"
+        fi
+    silent: true
+
+  kubectl:download:
+    run: once
+    desc: Downloads 'kubectl' installation files
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    vars:
+      VERSION:
+        sh: curl -Ls https://dl.k8s.io/release/stable.txt
+    cmds:
+      - curl -LO "https://dl.k8s.io/release/{{.VERSION}}/bin/{{OS}}/{{ARCH}}/kubectl"
+      - chmod 0755 kubectl
+    silent: true
+
+  kubectl:install:
+    run: once
+    desc: Installs 'kubectl'
+    deps: [configure, bin:install, kubectl:download]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mv kubectl {{.BIN}}/kubectl
+    silent: true
+
+  k9s:download:
+    run: once
+    desc: Downloads 'k9s' installation files
+    deps: [configure, jq:install, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    vars:
+      VERSION:
+        sh: curl -s https://api.github.com/repos/derailed/k9s/releases/latest | jq -r .tag_name
+    cmds:
+      - curl -L https://github.com/derailed/k9s/releases/download/{{.VERSION}}/k9s_{{OS}}_{{ARCH}}.tar.gz -o k9s_{{OS}}_{{ARCH}}.tar.gz
+      - tar -zxf k9s_{{OS}}_{{ARCH}}.tar.gz k9s
+      - rm -f k9s_{{OS}}_{{ARCH}}.tar.gz
+    silent: true
+
+  k9s:install:
+    run: once
+    desc: Installs 'k9s'
+    deps: [configure, bin:install, k9s:download, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mv k9s {{.BIN}}/k9s
+    silent: true
+
+  terraform:download:
+    run: once
+    desc: Downloads 'terraform' installation files
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - curl -LO https://releases.hashicorp.com/terraform/{{.TERRAFORM_VERSION}}/terraform_{{.TERRAFORM_VERSION}}_{{OS}}_{{ARCH}}.zip
+      - unzip terraform_{{.TERRAFORM_VERSION}}_{{OS}}_{{ARCH}}.zip && rm -f terraform_{{.TERRAFORM_VERSION}}_{{OS}}_{{ARCH}}.zip
+    silent: true
+
+  terraform:install:
+    run: once
+    desc: Install 'terraform'
+    deps: [configure, bin:install, terraform:download]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mv terraform {{.BIN}}/terraform
+    silent: true
+
+  terraform-docs:download:
+    run: once
+    desc: Downloads 'terraform-docs' installation files
+    deps: [configure, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    vars:
+      VERSION: v0.16.0
+    cmds:
+      - curl -LO https://terraform-docs.io/dl/{{.VERSION}}/terraform-docs-{{.VERSION}}-{{OS}}-{{ARCH}}.tar.gz
+      - tar -zxf terraform-docs-{{.VERSION}}-{{OS}}-{{ARCH}}.tar.gz terraform-docs
+      - rm -f terraform-docs-{{.VERSION}}-{{OS}}-{{ARCH}}.tar.gz
+    silent: true
+
+  terraform-docs:install:
+    run: once
+    desc: Installs 'terraform-docs'
+    deps: [configure, bin:install, terraform-docs:download]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mv terraform-docs {{.BIN}}/terraform-docs
+    silent: true
+
+  helm:download:
+    run: once
+    desc: Downloads 'helm' installation files
+    deps: [configure, jq:install, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    vars:
+      VERSION:
+        sh: curl -s https://api.github.com/repos/helm/helm/releases/latest | jq -r .tag_name
+    cmds:
+      - curl -LO https://get.helm.sh/helm-{{.VERSION}}-{{OS}}-{{ARCH}}.tar.gz
+      - tar -zxf helm-{{.VERSION}}-{{OS}}-{{ARCH}}.tar.gz && rm -f helm-{{.VERSION}}-{{OS}}-{{ARCH}}.tar.gz
+    silent: true
+
+  helm:install:
+    run: once
+    desc: Installs 'helm'
+    deps: [configure, bin:install, helm:download]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mv {{OS}}-{{ARCH}}/helm {{.BIN}}/helm && rm -rf {{OS}}-{{ARCH}}
+    silent: true
+
+  helm-docs:install:
+    run: once
+    desc: Installs 'helm-docs'
+    deps: [configure, go:install]
+    dir: "{{.LOCAL_TMP}}"
+    vars:
+      VERSION: v1.11.0
+    cmds:
+      - GO111MODULE=on go install github.com/norwoodj/helm-docs/cmd/helm-docs@{{.VERSION}}
+    silent: true
+
+  kwok:download:
+    run: once
+    desc: Download 'kwok' installation files
+    deps: [configure, jq:install, go:install, curl:check]
+    dir: "{{.LOCAL_TMP}}"
+    vars:
+      KWOK_REPO: kubernetes-sigs/kwok
+      VERSION:
+        sh: curl https://api.github.com/repos/{{.KWOK_REPO}}/releases/latest | jq -r '.tag_name'
+    cmds:
+      - curl -LO https://github.com/{{.KWOK_REPO}}/releases/download/{{.VERSION}}/kwokctl-{{OS}}-{{ARCH}}
+      - chmod 0755 kwokctl-{{OS}}-{{ARCH}}
+    silent: true
+
+  kwok:install:
+    run: once
+    desc: Installs 'kwok'
+    deps: [configure, bin:install, kwok:download]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - mv kwokctl-{{OS}}-{{ARCH}} {{.BIN}}/kwokctl
+    silent: true
+
+  glab:download:
+    run: once
+    desc: Downloads 'glab' installation files
+    deps: [configure, go:install, git:install]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          [[ $(command -v glab) ]] || git clone https://gitlab.com/gitlab-org/cli.git glab
+        fi
+    silent: true
+
+  glab:install:
+    run: once
+    desc: Installs 'glab'
+    preconditions:
+      - sh: command -v make
+        msg: "'make' must be installed in order to compile 'glab'"
+    deps: [configure, glab:download]
+    dir: "{{.USER_HOME}}/go/bin"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          [[ $(command -v glab) ]] || cd {{.USER_WORKING_DIR}}/glab && PATH=$PATH:{{.USER_HOME}}/go/bin make install
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          [[ $(command -v glab) ]] || brew install glab
+        fi
+    silent: true
+
+  code:install:
+    run: once
+    desc: Installs 'vscode'
+    deps: [configure]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          if [[ {{.OS_DIST}} == "ubuntu" || {{.OS_DIST}} == "debian" ]]; then
+            [[ $(command -v code) ]] || sudo apt install -y code
+          fi
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          [[ $(command -v code) ]] || brew install --cask visual-studio-code
+        fi
+    silent: true
