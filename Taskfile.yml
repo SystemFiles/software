@@ -5,7 +5,7 @@ output: prefixed
 vars:
   OS_DIST:
     sh: |
-      [[ -f /etc/os-release ]] && cat /etc/os-release | grep -i id | head -1 | cut -d= -f2 | tr '[:upper:]' '[:lower:]' || echo "nil"
+      [[ -f /etc/os-release ]] && cat /etc/os-release | grep -iE "^id=" | head -1 | cut -d= -f2 | tr '[:upper:]' '[:lower:]' || echo "nil"
 
   USER_HOME:
     sh: |
@@ -17,7 +17,7 @@ vars:
 
   LOCAL_TMP:
     sh: |
-      echo "$(pwd)/{{now | date "2006-01-02"}}_tmp"
+      echo "$(pwd)/.tasks_tmp"
 
   TERRAFORM_VERSION: "1.4.2"
 
@@ -143,6 +143,7 @@ tasks:
             echo "[WARNING] there appears to be no automated way to install pre-commit on {{OS}}. install it manually"
           fi
         fi
+    silent: true
 
   rust:install:
     run: once
@@ -151,6 +152,7 @@ tasks:
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sudo sh -s -- -y
+    silent: true
 
   go:download:
     run: once

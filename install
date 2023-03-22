@@ -1,0 +1,15 @@
+#!/bin/bash
+# installs the software tasks repo on the machine and ensures go-task is present
+
+set -exo pipefail
+
+DEST=$HOME/software-tasks
+BIN=$HOME/bin
+
+[[ ! $(command -v curl) ]] && echo "[ERROR] curl is required" && exit 1
+echo "[INFO] Installing software taskfile to $DEST ..."
+mkdir -p $HOME/software-tasks && curl -sSL -o $DEST/Taskfile.yml https://raw.githubusercontent.com/SystemFiles/software/master/Taskfile.yml
+echo "[INFO] Installing go-task to $BIN ..."
+[[ $(command -v task) ]] || bash <(curl -s --location https://taskfile.dev/install.sh) -d -b $BIN
+
+echo "[INFO] Done!"
