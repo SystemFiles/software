@@ -450,6 +450,6 @@ tasks:
         mv ./bin/exa {{.BIN}}/exa
         chmod 0755 {{.BIN}}/exa
         # install zsh completions
-        mv ./completions/exa.zsh $HOME/.zsh_completions/
+        mv ./completions/exa.zsh $HOME/.zsh_completions/_exa
 
     silent: true
