@@ -418,3 +418,38 @@ tasks:
           [[ $(command -v code) ]] || brew install --cask visual-studio-code
         fi
     silent: true
+
+  yq:install:
+    run: once
+    desc: Downloads 'yq'
+    deps: [bin:install]
+    dir: "{{.BIN}}"
+    cmds:
+      - curl -sSLo yq https://github.com/mikefarah/yq/releases/download/v4.33.3/yq_linux_amd64
+      - chmod 0755 yq
+    silent: true
+
+  exa:download:
+    run: once
+    desc: Downloads 'exa' and extracts its contents to {{.LOCAL_TMP}}
+    deps: [configure, unzip:install]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - curl -sSLo exa.zip https://github.com/ogham/exa/releases/download/v0.10.1/exa-linux-x86_64-v0.10.1.zip
+      - unzip exa.zip && rm -f exa.zip
+    silent: true
+
+  exa:install:
+    run: once
+    desc: Installs 'exa' from binary
+    deps: [configure, bin:install, exa:download]
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        # install exa
+        mv ./bin/exa {{.BIN}}/exa
+        chmod 0755 {{.BIN}}/exa
+        # install zsh completions
+        mv ./completions/exa.zsh $HOME/.zsh_completions/
+
+    silent: true
