@@ -19,10 +19,6 @@ vars:
     sh: |
       echo "$(pwd)/.tasks_tmp"
 
-  TERRAFORM_VERSION: "1.4.2"
-
-  GO_VERSION: 1.20.2
-
 tasks:
 
   default:
@@ -158,6 +154,8 @@ tasks:
     run: once
     desc: Downloads 'go' installation files
     deps: [configure, curl:check]
+    vars:
+      GO_VERSION: 1.20.2
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
@@ -172,12 +170,13 @@ tasks:
     run: once
     desc: Installs 'go'
     deps: [configure, go:download]
+    vars:
+      GO_VERSION: 1.20.2
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
         if [[ "{{OS}}" == "linux" ]]; then
-          [[ $(command -v go) ]] || sudo rm -rf {{.USER_HOME}}/go && tar -C {{.USER_HOME}} -zxf go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz
-          rm -f go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz
+          [[ $(command -v go) ]] || (rm -rf {{.USER_HOME}}/go && tar -C {{.USER_HOME}} -zxvf go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz && rm -f go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.tar.gz)
         elif [[ "{{OS}}" == "darwin" ]]; then
           [[ $(command -v go) ]] || sudo installer -pkg go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.pkg -target / && rm -f go{{.GO_VERSION}}.{{OS}}-{{ARCH}}.pkg
         fi
@@ -281,6 +280,8 @@ tasks:
     run: once
     desc: Downloads 'terraform' installation files
     deps: [configure, curl:check]
+    vars:
+      TERRAFORM_VERSION: "1.4.2"
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - curl -LO https://releases.hashicorp.com/terraform/{{.TERRAFORM_VERSION}}/terraform_{{.TERRAFORM_VERSION}}_{{OS}}_{{ARCH}}.zip
@@ -396,10 +397,12 @@ tasks:
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
-        if [[ "{{OS}}" == "linux" ]]; then
-          [[ $(command -v glab) ]] || cd glab && PATH=$PATH:{{.USER_HOME}}/go/bin make install
-        elif [[ "{{OS}}" == "darwin" ]]; then
-          [[ $(command -v glab) ]] || brew install glab
+        if [[ ! $(command -v glab) ]]; then
+          if [[ "{{OS}}" == "linux" ]]; then
+            cd glab && PATH=$PATH:{{.USER_HOME}}/go/bin make install
+          elif [[ "{{OS}}" == "darwin" ]]; then
+            brew install glab
+          fi
         fi
     silent: true
 
@@ -410,12 +413,14 @@ tasks:
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
-        if [[ "{{OS}}" == "linux" ]]; then
-          if [[ {{.OS_DIST}} == "ubuntu" || {{.OS_DIST}} == "debian" ]]; then
-            [[ $(command -v code) ]] || sudo apt install -y code
+        if [[ ! $(command -v code) ]]; then
+          if [[ "{{OS}}" == "linux" ]]; then
+            if [[ {{.OS_DIST}} == "ubuntu" || {{.OS_DIST}} == "debian" ]]; then
+              sudo apt install -y code
+            fi
+          elif [[ "{{OS}}" == "darwin" ]]; then
+            brew install --cask visual-studio-code
           fi
-        elif [[ "{{OS}}" == "darwin" ]]; then
-          [[ $(command -v code) ]] || brew install --cask visual-studio-code
         fi
     silent: true
 
@@ -423,9 +428,11 @@ tasks:
     run: once
     desc: Downloads 'yq'
     deps: [bin:install]
+    vars:
+      YQ_VERSION: "v4.33.3"
     dir: "{{.BIN}}"
     cmds:
-      - curl -sSLo yq https://github.com/mikefarah/yq/releases/download/v4.33.3/yq_linux_amd64
+      - curl -sSLo yq https://github.com/mikefarah/yq/releases/download/{{.YQ_VERSION}}/yq_{{OS}}_{{ARCH}}
       - chmod 0755 yq
     silent: true
 
@@ -433,9 +440,11 @@ tasks:
     run: once
     desc: Downloads 'exa' and extracts its contents to {{.LOCAL_TMP}}
     deps: [configure, unzip:install]
+    vars:
+      EXA_VERSION: "v0.10.1"
     dir: "{{.LOCAL_TMP}}"
     cmds:
-      - curl -sSLo exa.zip https://github.com/ogham/exa/releases/download/v0.10.1/exa-linux-x86_64-v0.10.1.zip
+      - curl -sSLo exa.zip https://github.com/ogham/exa/releases/download/{{.EXA_VERSION}}/exa-{{OS}}-x86_64-{{.EXA_VERSION}}.zip
       - unzip exa.zip && rm -f exa.zip
     silent: true
 
@@ -446,10 +455,62 @@ tasks:
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
-        # install exa
-        mv ./bin/exa {{.BIN}}/exa
-        chmod 0755 {{.BIN}}/exa
-        # install zsh completions
-        mv ./completions/exa.zsh $HOME/.zsh_completions/_exa
+        if [[ -z "$(command -v exa)" ]]; then
+          # install exa
+          mv ./bin/exa {{.BIN}}/exa
+          chmod 0755 {{.BIN}}/exa
+          # install zsh completions
+          mv ./completions/exa.zsh $HOME/.zsh_completions/_exa
+        fi
+    silent: true
 
+  oc:download:
+    run: once
+    desc: Downloads 'oc' and extracts its contents to {{.LOCAL_TMP}}
+    deps: [configure, unzip:install]
+    vars:
+      OC_VERSION: "4.14.1"
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - curl -sSLo oc.tar.gz https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{.OC_VERSION}}/openshift-client-src.tar.gz
+      - tar -zxvf oc.tar.gz
+    silent: true
+
+  oc:install:
+    run: once
+    desc: Make and Installs OC (requires GCC)
+    deps: [configure, bin:install, oc:download, go:install]
+    vars:
+      OC_VERSION: "4.14.1"
+    preconditions:
+    - sh: command -v make
+      msg: "'make' must be installed in order to compile 'oc'"
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ ! $(command -v oc) ]]; then
+          if [[ "{{OS}}" == "linux" ]]; then
+            cd oc-*; make cross-build-{{OS}}-{{ARCH}} OS_GIT_VERSION={{.OC_VERSION}} SHELL=/bin/bash
+            mv _output/bin/{{OS}}_{{ARCH}}/oc {{.BIN}}/oc
+          elif [[ "{{OS}}" == "darwin" ]]; then
+            brew install openshift-cli
+          fi
+        fi
+    silent: true
+  kind:install:
+    run: once
+    desc: Download and Install 'kind'
+    deps: [configure, bin:install]
+    vars:
+      KIND_VERSION: "v0.20.0"
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ ! $(command -v kind ) ]]; then
+          if [[ "{{OS}}" == "linux" ]]; then
+            curl -sSLo {{.BIN}}/kind https://kind.sigs.k8s.io/dl/{{.KIND_VERSION}}/kind-{{OS}}-{{ARCH}} && chmod 0750 {{.BIN}}/kind
+          elif [[ "{{OS}}" == "darwin" ]]; then
+            brew install kind
+          fi
+        fi
     silent: true
