@@ -426,7 +426,7 @@ tasks:
 
   yq:install:
     run: once
-    desc: Downloads 'yq'
+    desc: Downloads and Installs 'yq'
     deps: [bin:install]
     vars:
       YQ_VERSION: "v4.33.3"
@@ -473,7 +473,7 @@ tasks:
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - curl -sSLo oc.tar.gz https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{.OC_VERSION}}/openshift-client-src.tar.gz
-      - tar -zxvf oc.tar.gz
+      - tar -zxf oc.tar.gz
     silent: true
 
   oc:install:
@@ -499,7 +499,7 @@ tasks:
     silent: true
   kind:install:
     run: once
-    desc: Download and Install 'kind'
+    desc: Downloads and Installs 'kind'
     deps: [configure, bin:install]
     vars:
       KIND_VERSION: "v0.20.0"
@@ -514,3 +514,43 @@ tasks:
           fi
         fi
     silent: true
+
+  neovim:download:
+    run: once
+    desc: Downloads 'neovim' from GitHub releases and extracts its contents to {{.LOCAL_TMP}}
+    deps: [configure]
+    vars:
+      NVIM_VERSION: "0.8.2"
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - curl -sSLo nvim.tar.gz https://github.com/neovim/neovim/releases/download/v{{.NVIM_VERSION}}/nvim-linux64.tar.gz
+      - tar -zxf nvim.tar.gz
+    silent: true
+
+  neovim:install:
+    run: once
+    desc: Installs 'neovim'
+    deps: [configure, neovim:download, bin:install]
+    vars:
+      NVIM_VERSION: "0.8.2"
+    dir: "{{.LOCAL_TMP}}"
+    cmds:
+      - >
+        if [[ ! $(command -v nvim ) ]]; then
+          if [[ "{{OS}}" == "linux" ]]; then
+            mv nvim-linux64 {{.BIN}}/
+            ln -s {{.BIN}}/nvim-linux64/bin/nvim {{.BIN}}/nvim
+            chmod 0755 {{.BIN}}/nvim-linux64/bin/nvim
+          elif [[ "{{OS}}" == "darwin" ]]; then
+            brew install neovim
+          fi
+        fi
+    silent: true
+  cleanup:
+    run: once
+    desc: Cleans out the temporary install directory at {{.LOCAL_TMP}}
+    deps: [configure]
+    cmds:
+      - rm -rf {{.LOCAL_TMP}}/*
+      - rmdir {{.LOCAL_TMP}}
+    silent: false

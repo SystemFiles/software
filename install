@@ -1,14 +1,20 @@
 #!/bin/bash
 # installs the software tasks repo on the machine and ensures go-task is present
 
-set -exo pipefail
+set -eo pipefail
 
+REF=master
 DEST=$HOME/software-tasks
 BIN=$HOME/bin
 
+if [[ "$TASKS_REF" ]]; then
+	echo "[INFO] Got TASKS_REF from environment. Setting REF=$TASKS_REF"
+	REF=$TASKS_REF
+fi
+
 [[ ! $(command -v curl) ]] && echo "[ERROR] curl is required" && exit 1
 echo "[INFO] Installing software taskfile to $DEST ..."
-mkdir -p $HOME/software-tasks && curl -sSL -o $DEST/Taskfile.yml https://raw.githubusercontent.com/SystemFiles/software/master/Taskfile.yml
+mkdir -p $HOME/software-tasks && curl -sSL -o $DEST/Taskfile.yml https://raw.githubusercontent.com/SystemFiles/software/$REF/Taskfile.yml
 echo "[INFO] Installing go-task to $BIN ..."
 [[ $(command -v task) ]] || bash <(curl -s --location https://taskfile.dev/install.sh) -d -b $BIN
 
