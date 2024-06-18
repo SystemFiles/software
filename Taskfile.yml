@@ -159,7 +159,8 @@ tasks:
     cmds:
       - >
         if [[ "{{OS}}" == "linux" ]]; then
-          curl -sSLo {{.BIN}}/jq https://github.com/stedolan/jq/releases/download/jq-{{.VERSION}}/jq-linux64 && chmod 0750 {{.BIN}}/jq
+          curl -sSLo {{.BIN}}/jq https://github.com/jqlang/jq/releases/download/jq-{{.VERSION}}/jq-linux64
+          chmod 0750 {{.BIN}}/jq
         elif [[ "{{OS}}" == "darwin" ]]; then
           brew install jq
         fi
