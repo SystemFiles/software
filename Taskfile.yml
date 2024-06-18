@@ -156,10 +156,12 @@ tasks:
     run: once
     desc: Installs 'jq'
     deps: [bin:install]
+    vars:
+      VERSION: "1.7.1"
     cmds:
       - >
         if [[ "{{OS}}" == "linux" ]]; then
-          curl -sSLo {{.BIN}}/jq https://github.com/jqlang/jq/releases/download/jq-{{.VERSION}}/jq-linux64
+          curl -sSLo {{.BIN}}/jq https://github.com/jqlang/jq/releases/download/jq-{{.VERSION}}/jq-linux-amd64
           chmod 0750 {{.BIN}}/jq
         elif [[ "{{OS}}" == "darwin" ]]; then
           brew install jq
