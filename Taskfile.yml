@@ -32,39 +32,23 @@ tasks:
       - sh: command -v curl
         msg: "'curl' must be installed in order to run this task"
 
-  install:
-    desc: Installs everything
-    deps: [install:kubernetes, install:headless]
+  basics:install:
+    desc: Installs all the basic software I use regularly
+    deps: [curl:check]
     dir: "{{.LOCAL_TMP}}"
     cmds:
-      - task: code:install
-      - rm -rf {{.LOCAL_TMP}}
-
-  install:kubernetes:
-    desc: Installs Kubernetes tools
-    dir: "{{.LOCAL_TMP}}"
-    cmds:
-      - task: go:install
-      - task: jq:install
-      - task: kubectl:install
-      - task: k9s:install
-      - task: kwok:install
-      - task: helm:install
-      - rm -rf {{.LOCAL_TMP}}
-
-  install:headless:
-    desc: Installs all headless tools
-    dir: "{{.LOCAL_TMP}}"
-    cmds:
-      - task: unzip:install
+      - task: yq:install
       - task: jq:install
       - task: git:install
       - task: go:install
-      - task: install:kubernetes
-      - task: terraform:install
-      - task: terraform-docs:install
+      - task: rust:install
+      - task: docker:install
+      - task: kubectl:install
       - task: glab:install
-      - rm -rf {{.LOCAL_TMP}}
+      - task: eza:install
+      - task: zsh:install
+      - task: precommit:install
+      - task: cleanup
 
   configure:
     run: once
@@ -79,21 +63,6 @@ tasks:
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - mkdir -pv {{.BIN}}
-    silent: true
-
-  unzip:install:
-    run: once
-    desc: Installs 'unzip'
-    dir: "{{.LOCAL_TMP}}"
-    cmds:
-      - >
-        if [[ "{{OS}}" == "linux" ]]; then
-          if [[ {{.OS_DIST}} == "debian" || {{.OS_DIST}} == "ubuntu" ]]; then
-            [[ $(command -v unzip) ]] || sudo apt install -y unzip
-          fi
-        elif [[ "{{OS}}" == "darwin" ]]; then
-          [[ $(command -v unzip) ]] || brew install unzip
-        fi
     silent: true
 
   git:install:
@@ -136,7 +105,7 @@ tasks:
           brew install pre-commit
         elif [[ "{{OS}}" == "linux" ]]; then
           if [[ "{{.OS_DIST}}" == "debian" || "{{.OS_DIST}}" == "ubuntu" ]]; then
-            echo "[WARNING] there appears to be no automated way to install pre-commit on {{OS}}. install it manually"
+            echo "[WARNING] there appears to be no automated way to install pre-commit on {{OS}}. install it manually from https://pre-commit.com/#install"
           fi
         fi
     silent: true
@@ -155,7 +124,7 @@ tasks:
     desc: Downloads 'go' installation files
     deps: [configure, curl:check]
     vars:
-      GO_VERSION: 1.20.2
+      GO_VERSION: 1.22.4
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
@@ -171,7 +140,7 @@ tasks:
     desc: Installs 'go'
     deps: [configure, go:download]
     vars:
-      GO_VERSION: 1.20.2
+      GO_VERSION: 1.22.4
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
@@ -182,30 +151,17 @@ tasks:
         fi
     silent: true
 
-  jq:download:
-    run: once
-    desc: Downloads 'jq' installation files
-    deps: [configure, curl:check]
-    dir: "{{.LOCAL_TMP}}"
-    vars:
-      VERSION: "1.6"
-    cmds:
-      - >
-        if [[ "{{OS}}" == "linux" ]]; then
-          curl -L -o jq https://github.com/stedolan/jq/releases/download/jq-{{.VERSION}}/jq-linux64;
-        elif [[ "{{OS}}" == "darwin" ]]; then
-          curl -L -o jq https://github.com/stedolan/jq/releases/download/jq-{{.VERSION}}/jq-osx-{{ARCH}};
-        fi
-      - chmod 0755 jq
-    silent: true
-
   jq:install:
     run: once
     desc: Installs 'jq'
-    deps: [configure, bin:install, jq:download, curl:check]
-    dir: "{{.LOCAL_TMP}}"
+    deps: [bin:install, jq:download]
     cmds:
-      - mv jq {{.BIN}}/jq
+      - >
+        if [[ "{{OS}}" == "linux" ]]; then
+          curl -sSLo {{.BIN}}/jq https://github.com/stedolan/jq/releases/download/jq-{{.VERSION}}/jq-linux64 && chmod 0750 {{.BIN}}/jq
+        elif [[ "{{OS}}" == "darwin" ]]; then
+          brew install jq
+        fi
     silent: true
 
   docker:install:
@@ -270,7 +226,7 @@ tasks:
   k9s:install:
     run: once
     desc: Installs 'k9s'
-    deps: [configure, bin:install, k9s:download, curl:check]
+    deps: [bin:install, k9s:download]
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - mv k9s {{.BIN}}/k9s
@@ -291,7 +247,7 @@ tasks:
   terraform:install:
     run: once
     desc: Install 'terraform'
-    deps: [configure, bin:install, terraform:download]
+    deps: [bin:install, terraform:download]
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - mv terraform {{.BIN}}/terraform
@@ -313,7 +269,7 @@ tasks:
   terraform-docs:install:
     run: once
     desc: Installs 'terraform-docs'
-    deps: [configure, bin:install, terraform-docs:download]
+    deps: [bin:install, terraform-docs:download]
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - mv terraform-docs {{.BIN}}/terraform-docs
@@ -335,7 +291,7 @@ tasks:
   helm:install:
     run: once
     desc: Installs 'helm'
-    deps: [configure, bin:install, helm:download]
+    deps: [bin:install, helm:download]
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - mv {{OS}}-{{ARCH}}/helm {{.BIN}}/helm && rm -rf {{OS}}-{{ARCH}}
@@ -369,7 +325,7 @@ tasks:
   kwok:install:
     run: once
     desc: Installs 'kwok'
-    deps: [configure, bin:install, kwok:download]
+    deps: [bin:install, kwok:download]
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - mv kwokctl-{{OS}}-{{ARCH}} {{.BIN}}/kwokctl
@@ -393,7 +349,7 @@ tasks:
     preconditions:
       - sh: command -v make
         msg: "'make' must be installed in order to compile 'glab'"
-    deps: [configure, glab:download]
+    deps: [glab:download]
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >
@@ -408,7 +364,7 @@ tasks:
 
   code:install:
     run: once
-    desc: Installs 'vscode'
+    desc: Installs 'Visual Studio Code' and extensions
     deps: [configure]
     dir: "{{.LOCAL_TMP}}"
     cmds:
@@ -422,6 +378,35 @@ tasks:
             brew install --cask visual-studio-code
           fi
         fi
+      - >
+        extensions=(
+          hashicorp.terraform
+          4ops.packer
+          editorconfig.editorconfig
+          monokai.theme-monokai-pro-vscode
+          esbenp.prettier-vscode
+          golang.go
+          rust-lang.rust-analyzer
+          redhat.ansible
+          redhat.vscode-commons
+          redhat.vscode-yaml
+          asvetliakov.vscode-neovim
+          yzhang.markdown-all-in-one
+          oderwat.indent-rainbow
+          sirtori.indenticator
+          ms-kubernetes-tools.vscode-kubernetes-tools
+          amazonwebservices.aws-toolkit-vscode
+          aaron-bond.better-comments
+          christian-kohler.path-intellisense
+          jinliming2.vscode-go-template
+          tamasfe.even-better-toml
+          vue.volar
+          wayou.vscode-todo-highlight
+        )
+
+        for extension in ${extensions[@]}; do
+          code --force --install-extension $extension
+        done
     silent: true
 
   yq:install:
@@ -436,38 +421,44 @@ tasks:
       - chmod 0755 yq
     silent: true
 
-  exa:download:
+  zsh:install:
     run: once
-    desc: Downloads 'exa' and extracts its contents to {{.LOCAL_TMP}}
-    deps: [configure, unzip:install]
-    vars:
-      EXA_VERSION: "v0.10.1"
-    dir: "{{.LOCAL_TMP}}"
-    cmds:
-      - curl -sSLo exa.zip https://github.com/ogham/exa/releases/download/{{.EXA_VERSION}}/exa-{{OS}}-x86_64-{{.EXA_VERSION}}.zip
-      - unzip exa.zip && rm -f exa.zip
-    silent: true
-
-  exa:install:
-    run: once
-    desc: Installs 'exa' from binary
-    deps: [configure, bin:install, exa:download]
-    dir: "{{.LOCAL_TMP}}"
+    desc: Installs the ZSH shell
     cmds:
       - >
-        if [[ -z "$(command -v exa)" ]]; then
-          # install exa
-          mv ./bin/exa {{.BIN}}/exa
-          chmod 0755 {{.BIN}}/exa
-          # install zsh completions
-          mv ./completions/exa.zsh $HOME/.zsh_completions/_exa
+        if [[ ! $(command -v zsh) ]]; then
+          if [[ "{{OS}}" == "linux" ]]; then
+            if [[ "{{.OS_DIST}}" == "debian" ]]; then
+              sudo apt-get update && sudo apt-get install -y zsh
+            fi
+          elif [[ "{{OS}}" == "darwin" ]]; then
+            brew install zsh
+          fi
+        fi
+    silent: true
+
+  eza:install:
+    run: once
+    desc: Downloads and installs 'exa'
+    deps: [bin:install]
+    vars:
+      EZA_VERSION: "v0.18.17"
+    dir: "{{.BIN}}"
+    cmds:
+      - >
+        if [[ "{{OS}}" == "darwin" ]]; then
+          brew install eza
+        else
+          curl -sSLf https://github.com/eza-community/eza/releases/download/{{.EZA_VERSION}}/eza_x86_64-unknown-linux-gnu.tar.gz | tar -zx
+          mv eza {{.BIN}}/eza && chmod 0750 {{.BIN}}/eza
+          curl -sSLo $HOME/.zsh_completions/_eza https://raw.githubusercontent.com/eza-community/eza/main/completions/zsh/_eza
         fi
     silent: true
 
   oc:download:
     run: once
     desc: Downloads 'oc' and extracts its contents to {{.LOCAL_TMP}}
-    deps: [configure, unzip:install]
+    deps: [configure]
     vars:
       OC_VERSION: "4.14.1"
     dir: "{{.LOCAL_TMP}}"
@@ -479,7 +470,7 @@ tasks:
   oc:install:
     run: once
     desc: Make and Installs OC (requires GCC)
-    deps: [configure, bin:install, oc:download, go:install]
+    deps: [bin:install, oc:download, go:install]
     vars:
       OC_VERSION: "4.14.1"
     preconditions:
@@ -497,6 +488,7 @@ tasks:
           fi
         fi
     silent: true
+
   kind:install:
     run: once
     desc: Downloads and Installs 'kind'
@@ -520,11 +512,10 @@ tasks:
     desc: Downloads 'neovim' from GitHub releases and extracts its contents to {{.LOCAL_TMP}}
     deps: [configure]
     vars:
-      NVIM_VERSION: "0.8.2"
+      NVIM_VERSION: "0.10.0"
     dir: "{{.LOCAL_TMP}}"
     cmds:
-      - curl -sSLo nvim.tar.gz https://github.com/neovim/neovim/releases/download/v{{.NVIM_VERSION}}/nvim-linux64.tar.gz
-      - tar -zxf nvim.tar.gz
+      - curl -sSLf https://github.com/neovim/neovim/releases/download/v{{.NVIM_VERSION}}/nvim-linux64.tar.gz | tar -zx
     silent: true
 
   neovim:install:
@@ -532,7 +523,7 @@ tasks:
     desc: Installs 'neovim'
     deps: [configure, neovim:download, bin:install]
     vars:
-      NVIM_VERSION: "0.8.2"
+      NVIM_VERSION: "0.10.0"
     dir: "{{.LOCAL_TMP}}"
     cmds:
       - >

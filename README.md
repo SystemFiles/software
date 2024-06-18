@@ -4,6 +4,12 @@ contains a [taskfile](https://taskfile.dev/) for installing dev software
 
 ## initial setup
 
+Set up the environment (**optional**)
+
+```bash
+REF=master
+```
+
 ```bash
 bash <(curl -sSLf https://raw.githubusercontent.com/SystemFiles/software/master/install)
 ```
