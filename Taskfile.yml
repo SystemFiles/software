@@ -154,7 +154,7 @@ tasks:
   jq:install:
     run: once
     desc: Installs 'jq'
-    deps: [bin:install, jq:download]
+    deps: [bin:install]
     cmds:
       - >
         if [[ "{{OS}}" == "linux" ]]; then
