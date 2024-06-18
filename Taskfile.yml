@@ -44,6 +44,7 @@ tasks:
       - task: rust:install
       - task: docker:install
       - task: kubectl:install
+      - task: k9s:install
       - task: glab:install
       - task: eza:install
       - task: zsh:install
@@ -449,8 +450,7 @@ tasks:
         if [[ "{{OS}}" == "darwin" ]]; then
           brew install eza
         else
-          curl -sSLf https://github.com/eza-community/eza/releases/download/{{.EZA_VERSION}}/eza_x86_64-unknown-linux-gnu.tar.gz | tar -zx
-          mv eza {{.BIN}}/eza && chmod 0750 {{.BIN}}/eza
+          curl -sSLf https://github.com/eza-community/eza/releases/download/{{.EZA_VERSION}}/eza_x86_64-unknown-linux-gnu.tar.gz | tar -zx && chmod 0750 {{.BIN}}/eza
           curl -sSLo $HOME/.zsh_completions/_eza https://raw.githubusercontent.com/eza-community/eza/main/completions/zsh/_eza
         fi
     silent: true
